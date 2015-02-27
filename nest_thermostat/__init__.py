@@ -5,6 +5,16 @@ nest_thermostat -- a python interface to the Nest Thermostat
 by Scott M Baker, smbaker@gmail.com, http://www.smbaker.com/
 updated by Bob Pasker bob@pasker.net http://pasker.net
 """
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.poolmanager import PoolManager
+import ssl
+
+class MyAdapter(HTTPAdapter):
+    def init_poolmanager(self, connections, maxsize, block=False):
+        self.poolmanager = PoolManager(num_pools=connections,
+                                       maxsize=maxsize,
+                                       block=block,
+                                       ssl_version=ssl.PROTOCOL_TLSv1)
 
 import requests
 
@@ -34,17 +44,19 @@ class Nest:
        self.transport_url = res["urls"]["transport_url"]
        self.access_token = res["access_token"]
        self.userid = res["userid"]
-       # print self.transport_url, self.access_token, self.userid
+       print self.transport_url, self.access_token, self.userid
 
     def get_status(self):
-       response = requests.get(self.transport_url + "/v2/mobile/user." + self.userid,
-                               headers={"user-agent":"Nest/1.1.0.10 CFNetwork/548.0.4",
-                                        "Authorization":"Basic " + self.access_token,
-                                        "X-nl-user-id": self.userid,
-                                        "X-nl-protocol-version": "1"})
-
-       response.raise_for_status()
-       res = response.json()
+       url = self.transport_url + "/v2/mobile/user." + self.userid
+       headers={"user-agent":"Nest/1.1.0.10 CFNetwork/548.0.4",
+                "Authorization":"Basic " + self.access_token,
+                "X-nl-user-id": self.userid,
+                "X-nl-protocol-version": "1"}
+       s = requests.session()
+       s.mount("https://", MyAdapter())
+       r = s.get(url=url, headers=headers, verify=False)
+       print r.status_code
+       res = r.json()
 
        self.structure_id = res["structure"].keys()[0]
 
